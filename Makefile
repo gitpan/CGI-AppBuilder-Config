@@ -12,11 +12,11 @@
 
 #     ABSTRACT => q[Configuration initializer]
 #     AUTHOR => q[geotiger2001@yahoo.com]
-#     DISTNAME => q[CGI-AppBuilder-Config-0.11.tar.gz]
+#     DISTNAME => q[CGI-AppBuilder-Config-0.12.tar.gz]
 #     NAME => q[CGI::AppBuilder::Config]
-#     PREREQ_PM => { Test::More=>q[0.45], Test::Harness=>q[0.1] }
-#     VERSION => q[0.11]
-#     test => { TESTS=>q[] }
+#     PREREQ_PM => { Test::More=>q[0.45], Test::Harness=>q[0.1], CGI::AppBuilder=>q[0.11] }
+#     VERSION => q[0.12]
+#     test => { TESTS=>q[t/ab_Config.t] }
 
 # --- MakeMaker post_initialize section:
 
@@ -55,11 +55,11 @@ AR_STATIC_ARGS = cr
 DIRFILESEP = /
 NAME = CGI::AppBuilder::Config
 NAME_SYM = CGI_AppBuilder_Config
-VERSION = 0.11
+VERSION = 0.12
 VERSION_MACRO = VERSION
-VERSION_SYM = 0_11
+VERSION_SYM = 0_12
 DEFINE_VERSION = -D$(VERSION_MACRO)=\"$(VERSION)\"
-XS_VERSION = 0.11
+XS_VERSION = 0.12
 XS_VERSION_MACRO = XS_VERSION
 XS_DEFINE_VERSION = -D$(XS_VERSION_MACRO)=\"$(XS_VERSION)\"
 INST_ARCHLIB = blib/arch
@@ -152,7 +152,7 @@ C_FILES  =
 O_FILES  = 
 H_FILES  = 
 MAN1PODS = 
-MAN3PODS = Config.pm
+MAN3PODS = 
 
 # Where is the Config information that we are using/depend on
 CONFIGDEP = $(PERL_ARCHLIB)$(DIRFILESEP)Config.pm $(PERL_INC)$(DIRFILESEP)config.h
@@ -174,10 +174,9 @@ PERL_ARCHIVE       =
 PERL_ARCHIVE_AFTER = 
 
 
-TO_INST_PM = Config.pm
+TO_INST_PM = 
 
-PM_TO_BLIB = Config.pm \
-	$(INST_LIB)/CGI/AppBuilder/Config.pm
+PM_TO_BLIB = 
 
 
 # --- MakeMaker platform_constants section:
@@ -239,8 +238,8 @@ CI = ci -u
 RCS_LABEL = rcs -Nv$(VERSION_SYM): -q
 DIST_CP = best
 DIST_DEFAULT = tardist
-DISTNAME = CGI-AppBuilder-Config-0.11.tar.gz
-DISTVNAME = CGI-AppBuilder-Config-0.11.tar.gz-0.11
+DISTNAME = CGI-AppBuilder-Config-0.12.tar.gz
+DISTVNAME = CGI-AppBuilder-Config-0.12.tar.gz-0.12
 
 
 # --- MakeMaker macro section:
@@ -326,16 +325,6 @@ $(INST_ARCHAUTODIR)/.exists :: /usr/local/lib/perl5/5.8.7/sun4-solaris/CORE/perl
 
 	-$(NOECHO) $(CHMOD) $(PERM_RWX) $(INST_ARCHAUTODIR)
 
-config :: $(INST_MAN3DIR)$(DIRFILESEP).exists
-	$(NOECHO) $(NOOP)
-
-
-$(INST_MAN3DIR)/.exists :: /usr/local/lib/perl5/5.8.7/sun4-solaris/CORE/perl.h
-	$(NOECHO) $(MKPATH) $(INST_MAN3DIR)
-	$(NOECHO) $(EQUALIZE_TIMESTAMP) /usr/local/lib/perl5/5.8.7/sun4-solaris/CORE/perl.h $(INST_MAN3DIR)/.exists
-
-	-$(NOECHO) $(CHMOD) $(PERM_RWX) $(INST_MAN3DIR)
-
 help:
 	perldoc ExtUtils::MakeMaker
 
@@ -380,11 +369,8 @@ POD2MAN_EXE = $(PERLRUN) "-MExtUtils::Command::MM" -e pod2man "--"
 POD2MAN = $(POD2MAN_EXE)
 
 
-manifypods : pure_all  \
-	Config.pm \
-	Config.pm
-	$(NOECHO) $(POD2MAN) --section=3 --perm_rw=$(PERM_RW)\
-	  Config.pm $(INST_MAN3DIR)/CGI::AppBuilder::Config.$(MAN3EXT) 
+manifypods : pure_all 
+	$(NOECHO) $(NOOP)
 
 
 
@@ -425,18 +411,19 @@ realclean_subdirs :
 realclean purge ::  clean realclean_subdirs
 	$(RM_RF) $(INST_AUTODIR) $(INST_ARCHAUTODIR)
 	$(RM_RF) $(DISTVNAME)
-	$(RM_F)  $(INST_LIB)/CGI/AppBuilder/Config.pm $(MAKEFILE_OLD) $(FIRST_MAKEFILE)
+	$(RM_F)  $(MAKEFILE_OLD) $(FIRST_MAKEFILE)
 
 
 # --- MakeMaker metafile section:
 metafile :
 	$(NOECHO) $(ECHO) '# http://module-build.sourceforge.net/META-spec.html' > META.yml
 	$(NOECHO) $(ECHO) '#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#' >> META.yml
-	$(NOECHO) $(ECHO) 'name:         CGI-AppBuilder-Config-0.11.tar.gz' >> META.yml
-	$(NOECHO) $(ECHO) 'version:      0.11' >> META.yml
+	$(NOECHO) $(ECHO) 'name:         CGI-AppBuilder-Config-0.12.tar.gz' >> META.yml
+	$(NOECHO) $(ECHO) 'version:      0.12' >> META.yml
 	$(NOECHO) $(ECHO) 'version_from: ' >> META.yml
 	$(NOECHO) $(ECHO) 'installdirs:  site' >> META.yml
 	$(NOECHO) $(ECHO) 'requires:' >> META.yml
+	$(NOECHO) $(ECHO) '    CGI::AppBuilder:               0.11' >> META.yml
 	$(NOECHO) $(ECHO) '    Test::Harness:                 0.1' >> META.yml
 	$(NOECHO) $(ECHO) '    Test::More:                    0.45' >> META.yml
 	$(NOECHO) $(ECHO) '' >> META.yml
@@ -682,7 +669,7 @@ $(MAKE_APERL_FILE) : $(FIRST_MAKEFILE)
 TEST_VERBOSE=0
 TEST_TYPE=test_$(LINKTYPE)
 TEST_FILE = test.pl
-TEST_FILES = t/*.t
+TEST_FILES = t/ab_Config.t
 TESTDB_SW = -d
 
 testdb :: testdb_$(LINKTYPE)
@@ -705,11 +692,12 @@ testdb_static :: testdb_dynamic
 # --- MakeMaker ppd section:
 # Creates a PPD (Perl Package Description) for a binary distribution.
 ppd:
-	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="0,11,0,0">' > $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '<SOFTPKG NAME="$(DISTNAME)" VERSION="0,12,0,0">' > $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <TITLE>$(DISTNAME)</TITLE>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <ABSTRACT>Configuration initializer</ABSTRACT>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <AUTHOR>geotiger2001@yahoo.com</AUTHOR>' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '    <IMPLEMENTATION>' >> $(DISTNAME).ppd
+	$(NOECHO) $(ECHO) '        <DEPENDENCY NAME="CGI-AppBuilder" VERSION="0,11,0,0" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <DEPENDENCY NAME="Test-Harness" VERSION="0,1,0,0" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <DEPENDENCY NAME="Test-More" VERSION="0,45,0,0" />' >> $(DISTNAME).ppd
 	$(NOECHO) $(ECHO) '        <OS NAME="$(OSNAME)" />' >> $(DISTNAME).ppd
@@ -722,8 +710,6 @@ ppd:
 # --- MakeMaker pm_to_blib section:
 
 pm_to_blib: $(TO_INST_PM)
-	$(NOECHO) $(PERLRUN) -MExtUtils::Install -e 'pm_to_blib({@ARGV}, '\''$(INST_LIB)/auto'\'', '\''$(PM_FILTER)'\'')'\
-	  Config.pm $(INST_LIB)/CGI/AppBuilder/Config.pm 
 	$(NOECHO) $(TOUCH) $@
 
 # --- MakeMaker selfdocument section:

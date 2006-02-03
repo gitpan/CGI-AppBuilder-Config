@@ -61,15 +61,20 @@ DESCRIPTION
       encoding    - application/x-www-form-urlencoded
       method      - POST
 
-  read_init_file($fn)
+  read_init_file($fn, $dvr)
     Input variables:
 
       $fn - full path to a file name
+      $dvr - delay variable replacement
+             0 - No (default)
+             1 - yes
 
     Variables used or routines called:
 
-      Debug::EchoMessage
-        echoMSG - echo messages
+      eval_variables - replace variables with their values
+
+      CGI::AppBuilder::Message
+        echo_msg - echo messages
 
     How to use:
 
@@ -102,6 +107,103 @@ DESCRIPTION
       $ar->{js_var}= "/my/js/var_file.js";
       $ar->{js_src}= "/my/first/js/prg.js,/my/js/var_file.js";
 
+  eval_variables($cfg, $hr)
+    Input variables:
+
+      $cfg - a hash array ref containing variable names
+      $hr  - a hash array ref contianing  varliable values
+
+    Variables used or routines called:
+
+      eval_named_var - get named variables' values
+      eval_var       - get variables' values
+
+    How to use:
+
+      my $mr = $self->eval_variables($cfg, $hr);
+
+    Return: a hash or hash ref.
+
+    This method evaluates the configuration hash and replace variable names
+    with their values up to 5 levels of nested variables. For instance, you
+    have the following configuration hash:
+
+      my $cfg = { a=>10, b=>"$a+2", c=>"2*($b)", d=>"$c-1", 
+                  result=>"3*($d)" }
+      my $mk = $self->eval_variables($cfg);   
+
+    This will result $cfg to
+
+      a = 10
+      b = 10+2
+      c = 2*(10+2)
+      d = 2*(10+2)-1
+      result = 3*(2*(10+2)-1)
+
+  eval_var($cfg, $hr)
+    Input variables:
+
+      $cfg - a hash ref containing variable names
+      $hr  - a hash ref which will be used to search for values 
+
+    Variables used or routines called:
+
+      None
+
+    How to use:
+
+      my $cfg = {first_name=>'John', last_name=>'Smith',
+         full_name => "\$first_name \$last_name",
+         addr1=>"111 Main Street",
+         city=>"Philadelphia", zip_code=>"19102",
+         address => "\$addr1, \$city, PA \$zip_code",
+         contact=>"\$full_name <address>\$address</address> \$logo",
+         };
+      my $hr = { logo => 'http://mydomain.com/images/logo.gif', };
+      my $p1 = $self->eval_var($cfg, $hr);
+      my $p2 = $self->eval_var($cfg, $hr);
+      # The first pass will get full_name, address replaced with values
+      # but leave contact with variable names in it.
+      # The second pass will get first_name, last_name, and address in
+      # contact replaced with their values. 
+ 
+    Return: a hash or hash ref
+
+    This method evaluates the variable names contained in a configuration
+    hash and replace the variable names with their values.
+
+  eval_named_var($hr, $vn, $sr)
+    Input variables:
+
+      $hr - a hash array ref containing variable names
+      $vn - variable name default to 'ENV' 
+      $sr - source hash ref. If omitted, {%$vn} will be used.
+
+    Variables used or routines called:
+
+      None
+
+    How to use:
+
+      my %ENV = (HTTP_HOST=>'testdomain.com:8000',USER=>'htu');
+      my $hr  = {first_name=>'John', last_name=>'Smith'};
+      my $cfg = { hh=>'$ENV{HTTP_HOST}',usr=>'$ENV{USER}',
+                 fn=>'$hr{first_name}', ln=>'$hr{last_name}',
+               };
+      my $p1 = $self->eval_named_var($cfg, 'ENV');
+      # the first pass will get 
+      #   $cfg->{hh}  = 'testdomain.com:8000'
+      #   $cfg->{usr} = 'htu'
+      my $p2 = $self->eval_named_var($cfg, 'hr', $hr);
+      # the second pass will get 
+      #   $cfg->{fn}  = 'John'
+      #   $cfg->{ln}  = 'Smith'
+
+    Return: a hash or hash ref
+
+    This method evaluates the variable names contained in a configuration
+    hash and replace the variable names with their values.
+
   read_cfg_file($fn,$ot, $fs)
     Input variables:
 
@@ -111,8 +213,8 @@ DESCRIPTION
 
     Variables used or routines called:
 
-      Debug::EchoMessage
-        echoMSG  - display message
+      CGI::AppBuilder::Message
+        echo_msg  - display message
 
     How to use:
 
@@ -140,12 +242,15 @@ HISTORY
         This version extracts these methods from CGI::Getopt class:
         get_inputs, read_init_file, and read_cfg_file.
 
-    * Version 0.11
-        Inherits the new constructor from CGI::AppBuilder.
+          0.11 Inherited the new constructor from CGI::AppBuilder.
+          0.12 Added eval_var, eval_named_var, eval_variables and
+               modified read_init_file method. 
+
+    * Version 0.20
 
 SEE ALSO (some of docs that I check often)
         Oracle::Loader, Oracle::Trigger, CGI::AppBuilder, File::Xcopy,
-        Debug::EchoMessage
+        CGI::AppBuilder::Message
 
 AUTHOR
         Copyright (c) 2005 Hanming Tu. All rights reserved.

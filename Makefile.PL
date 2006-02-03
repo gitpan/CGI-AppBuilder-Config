@@ -27,13 +27,15 @@ sub MY::preinstall  { return 1; }   # return false to skip install
 # post-install handler; takes $module_name, $version, and $success
 sub MY::postinstall { return 0 }
 use ExtUtils::AutoInstall (
-    -version        => '0.40',
+    -core => [
+        CGI::AppBuilder=>0.11,
+        ],
 );
 WriteMakefile(
     ABSTRACT        => 'Configuration initializer'   ,
     NAME            => 'CGI::AppBuilder::Config'     ,
-    DISTNAME        => 'CGI-AppBuilder-Config-0.11.tar.gz',
+    DISTNAME        => 'CGI-AppBuilder-Config-0.12.tar.gz',
     AUTHOR          => 'geotiger2001@yahoo.com'      ,
-    VERSION         => 0.11                          ,
+    VERSION         => 0.12                          ,
     PREREQ_PM       => {'Test::More' => 0.45,'Test::Harness' => 0.1,},
 );

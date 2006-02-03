@@ -7,14 +7,17 @@ use Getopt::Std;
 use POSIX qw(strftime);
 use Carp;
 use CGI::AppBuilder;
+use CGI::AppBuilder::Message qw(:echo_msg);
 
-our $VERSION = 0.11;
+our $VERSION = 0.12;
 require Exporter;
 our @ISA         = qw(Exporter CGI::AppBuilder);
 our @EXPORT      = qw();
 our @EXPORT_OK   = qw(get_inputs read_init_file read_cfg_file
+    eval_var eval_named_var eval_variables
                    );
 our %EXPORT_TAGS = (
+    eval_var => [qw(eval_var eval_named_var eval_variables)],
     config => [qw(get_inputs read_init_file)],
     all  => [@EXPORT_OK]
 );
@@ -105,8 +108,8 @@ sub get_inputs {
 
     $ifn = $s->{ifn} if !$ifn;
     $par = $s->{opt} if !$par;
-    $s->echoMSG("IFN=$ifn\nOPT=$par",3);
-    $s->echoMSG("ARGV: @ARGV",3);
+    $s->echo_msg("IFN=$ifn\nOPT=$par",3);
+    $s->echo_msg("ARGV: @ARGV",3);
 
     # return () if (!$ENV{'QUERY_STRING'} && !$ENV{'DOCUMENT_URI'} &&
     #      !$ENV{'REMOTE_ADDR'}  && !@ARGV);
@@ -132,12 +135,12 @@ sub get_inputs {
     $opt{encoding}  = 'application/x-www-form-urlencoded';
     $opt{method}    = 'POST';
     if (! exists $ENV{QUERY_STRING} || @ARGV) {
-        $s->echoMSG("Got ARGV...", 3);
+        $s->echo_msg("Got ARGV...", 3);
         # since $s->{opt} was set in new, then we have $par
         getopts("$par", \%opt);
         # $s->disp_param(\%opt); 
     } else {
-        $s->echoMSG("Got QUERY_STRING...", 3);
+        $s->echo_msg("Got QUERY_STRING...", 3);
         # corresponding to ARGV
         my $p1 = $par;  $p1 =~ s/://g;   # remove ':"
         foreach my $k (split //, $p1) { 
@@ -184,21 +187,26 @@ sub get_inputs {
         $cfg{$k} = $opt{$k} if ! exists $cfg{$k}; 
     }
     $cfg{ifn} = $ifn; $cfg{opt} = $par;
-    $s->debug($cfg{v}) if exists $cfg{v};
-    $s->echoMSG("    INI - $ifn: read.", 2);
+    $s->debug_level($cfg{v}) if exists $cfg{v};
+    $s->echo_msg("    INI - $ifn: read.", 2);
     return ($q, \%cfg);
 }
 
-=head2  read_init_file($fn)
+=head2  read_init_file($fn, $dvr)
 
 Input variables:
 
   $fn - full path to a file name
+  $dvr - delay variable replacement
+         0 - No (default)
+         1 - yes
 
 Variables used or routines called:
 
-  Debug::EchoMessage
-    echoMSG - echo messages
+  eval_variables - replace variables with their values
+
+  CGI::AppBuilder::Message
+    echo_msg - echo messages
 
 How to use:
 
@@ -235,11 +243,11 @@ This will create a hash array of
 
 sub read_init_file {
     my $s = shift;
-    my ($fn) = @_;
+    my ($fn, $dvr) = @_;
     if (!$fn)    { carp "    No file name is specified."; return; }
     if (!-f $fn) { carp "    File - $fn does not exist!"; return; }
     
-    my ($k, $v, %h);
+    my ($k, $v, %h, $mk);
     open FILE, "< $fn" or
         croak "ERR: could not read to file - $fn: $!\n";
     while (<FILE>) {
@@ -265,41 +273,199 @@ sub read_init_file {
         }
     }
     close FILE;
-    # explode the inline variables 
-    foreach my $k (keys %h) {
-        $h{$k} =~ s/^\s*//; $h{$k} =~ s/\s*$//;
-        my $v = $h{$k};
+    if (! $dvr) {  # not delay variable replacement 
+        $mk = $s->eval_variables(\%h); 
+        $s->echo_msg($mk, 3); 
+    }
+    return wantarray ? %h : \%h;
+}
+
+=head2  eval_variables($cfg, $hr)
+
+Input variables:
+
+  $cfg - a hash array ref containing variable names
+  $hr  - a hash array ref contianing  varliable values
+
+Variables used or routines called:
+
+  eval_named_var - get named variables' values
+  eval_var       - get variables' values
+
+How to use:
+
+  my $mr = $self->eval_variables($cfg, $hr);
+
+Return: a hash or hash ref.  
+
+This method evaluates the configuration hash and replace variable
+names with their values up to 5 levels of nested variables. 
+For instance, you have the following configuration hash:
+
+  my $cfg = { a=>10, b=>"$a+2", c=>"2*($b)", d=>"$c-1", 
+              result=>"3*($d)" }
+  my $mk = $self->eval_variables($cfg);   
+
+This will result $cfg to 
+
+  a = 10
+  b = 10+2
+  c = 2*(10+2)
+  d = 2*(10+2)-1
+  result = 3*(2*(10+2)-1)
+
+=cut
+
+sub eval_variables {
+    my $s = shift;
+    my ($cfg, $hr) = @_;
+    return wantarray ? () : {}  if ref($cfg) !~ /HASH/ || !$cfg;
+
+    # explode the inline variables for ENV variables 
+    my $m  = {};    # matched variables
+    my $kv = {};    # store hash name 
+    foreach my $k (keys %$cfg) {
+        next if ($cfg->{$k} =~ /^(ARRAY|HASH)/); 
+        $cfg->{$k} =~ s/^\s*//; $cfg->{$k} =~ s/\s*$//;
+        my $v = $cfg->{$k};
+        map { ++$kv->{$_} } ( $v =~ /\$(\w+)\{\w+\}/gi ); 
+    }
+    $m->{ENV} = $s->eval_named_var($cfg, 'ENV'); 
+    foreach my $k (keys %$kv) {
+       next if $k =~ /^ENV$/;
+       $m->{$k} = $s->eval_named_var($cfg, $k, $hr); 
+    }
+    $m->{p1}  = $s->eval_var($cfg, $hr); 
+    $m->{p2}  = $s->eval_var($cfg, $hr) if $m->{p1}; 
+    $m->{p3}  = $s->eval_var($cfg, $hr) if $m->{p1} && $m->{p2}; 
+    $m->{p4}  = $s->eval_var($cfg, $hr) if $m->{p1} && $m->{p2} && 
+                $m->{p3}; 
+    $m->{p5}  = $s->eval_var($cfg, $hr) if $m->{p1} && $m->{p2} && 
+                $m->{p3} && $m->{p4}; 
+    return wantarray ? %$m : $m;
+}
+
+=head2  eval_var($cfg, $hr)
+
+Input variables:
+
+  $cfg - a hash ref containing variable names
+  $hr  - a hash ref which will be used to search for values 
+
+Variables used or routines called:
+
+  None
+
+How to use:
+
+  my $cfg = {first_name=>'John', last_name=>'Smith',
+     full_name => "\$first_name \$last_name",
+     addr1=>"111 Main Street",
+     city=>"Philadelphia", zip_code=>"19102",
+     address => "\$addr1, \$city, PA \$zip_code",
+     contact=>"\$full_name <address>\$address</address> \$logo",
+     };
+  my $hr = { logo => 'http://mydomain.com/images/logo.gif', };
+  my $p1 = $self->eval_var($cfg, $hr);
+  my $p2 = $self->eval_var($cfg, $hr);
+  # The first pass will get full_name, address replaced with values
+  # but leave contact with variable names in it.
+  # The second pass will get first_name, last_name, and address in
+  # contact replaced with their values. 
+ 
+Return: a hash or hash ref 
+
+This method evaluates the variable names contained in a configuration
+hash and replace the variable names with their values. 
+
+=cut
+
+sub eval_var {
+    my $s = shift;
+    my ($hr, $ar) = @_;
+    return wantarray ? () : {}  if !$hr; 
+
+    my $kp = {}; 
+    foreach my $k (keys %$hr) {
+        next if ($hr->{$k} =~ /^(ARRAY|HASH)/); 
+        my $v = $hr->{$k};
+        my @m = ( $v =~ /(\$\w+)\s*/g );    # matched variables
+        next if (!@m); 
+        foreach my $x (@m) { 
+            my $y = $x; $y =~ s/^\$//; 
+            if (exists $hr->{$y} || ($ar && exists $ar->{$y}) ) { 
+                ++$kp->{$y}; 
+            } else {
+                $kp->{$y} += 0; 
+                next; 
+            } 
+            $v =~ s{\$$y}{$hr->{$y}}    if  exists $hr->{$y}; 
+            $v =~ s{\$$y}{$ar->{$y}}    if !exists $hr->{$y} 
+                && $ar && exists $ar->{$y};
+        }
+        $hr->{$k} = $v;
+    }
+    return wantarray ? %$kp : $kp; 
+}
+
+=head2  eval_named_var($hr, $vn, $sr)
+
+Input variables:
+
+  $hr - a hash array ref containing variable names
+  $vn - variable name default to 'ENV' 
+  $sr - source hash ref. If omitted, {%$vn} will be used.
+
+Variables used or routines called:
+
+  None
+
+How to use:
+
+  my %ENV = (HTTP_HOST=>'testdomain.com:8000',USER=>'htu');
+  my $hr  = {first_name=>'John', last_name=>'Smith'};
+  my $cfg = { hh=>'$ENV{HTTP_HOST}',usr=>'$ENV{USER}',
+             fn=>'$hr{first_name}', ln=>'$hr{last_name}',
+           };
+  my $p1 = $self->eval_named_var($cfg, 'ENV');
+  # the first pass will get 
+  #   $cfg->{hh}  = 'testdomain.com:8000'
+  #   $cfg->{usr} = 'htu'
+  my $p2 = $self->eval_named_var($cfg, 'hr', $hr);
+  # the second pass will get 
+  #   $cfg->{fn}  = 'John'
+  #   $cfg->{ln}  = 'Smith'
+
+Return: a hash or hash ref 
+
+This method evaluates the variable names contained in a configuration
+hash and replace the variable names with their values. 
+
+=cut
+
+sub eval_named_var {
+    my $s = shift;
+    my ($hr, $vn, $sr) = @_;
+    return wantarray ? () : {}  if !$hr; 
+    $vn = 'ENV'  if ! $vn; 
+    no strict "refs"; 
+    my $ar = ($sr) ? $sr : {%$vn}; 
+    my $kp = {}; 
+    foreach my $k (keys %$hr) {
+        next if ($hr->{$k} =~ /^(ARRAY|HASH)/); 
+        $hr->{$k} =~ s/^\s*//; $hr->{$k} =~ s/\s*$//;
+        my $v = $hr->{$k};
 	# http://ENV{HTTP_HOST}ENV{SCRIPT_NAME}
-        my @match2  = ( $v =~ /ENV\{(\w+)\}/gi ); # matched variables
-	next if (!@match2); 
-        foreach my $x (@match2) { 
+        my @m  = ( $v =~ /\$$vn\{(\w+)\}/gi ); # matched variables
+	next if (!@m); 
+        foreach my $x (@m) { 
             my $y = $x; $y =~ s/^\$//; 
-            $v =~ s#ENV\{$y\}#$ENV{$y}#i  if exists $ENV{$y}; 
+            $v =~ s#\$$vn\{$y\}#$ar->{$y}#i  if exists $ar->{$y}; 
+            ++$kp->{$y}                      if exists $ar->{$y}; 
         }
-        $h{$k} = $v;
+        $hr->{$k} = $v;
     }
-    foreach my $k (keys %h) {
-        my $v = $h{$k};
-        my @matched = ( $v =~ /(\$\w+)\s*/g );    # matched variables
-        next if (!@matched); 
-        foreach my $x (@matched) { 
-            my $y = $x; $y =~ s/^\$//; 
-            $v =~ s{\$$y}{$h{$y}}    if exists $h{$y}; 
-        }
-        $h{$k} = $v;
-    }
-    # do one more time so that we can replace all the variables
-    foreach my $k (keys %h) {
-        my $v = $h{$k};
-        my @matched = ( $v =~ /(\$\w+)\s*/g );    # matched variables
-        next if (!@matched); 
-        foreach my $x (@matched) { 
-            my $y = $x; $y =~ s/^\$//; 
-            $v =~ s{\$$y}{$h{$y}}    if exists $h{$y}; 
-        }
-        $h{$k} = $v;
-    }
-    return %h;
+    return wantarray ? %$kp : $kp; 
 }
 
 =head2  read_cfg_file($fn,$ot, $fs)
@@ -313,8 +479,8 @@ Input variables:
 
 Variables used or routines called:
 
-  Debug::EchoMessage
-    echoMSG  - display message
+  CGI::AppBuilder::Message
+    echo_msg  - display message
 
 How to use:
 
@@ -347,7 +513,7 @@ sub read_cfg_file {
     #
     if (!$fn)    { carp "    No file name is specified."; return; }
     if (!-f $fn) { carp "    File - $fn does not exist!"; return; }
-    $s->echoMSG("    CFG - $fn.", 2);
+    $s->echo_msg("    CFG - $fn.", 2);
     $ot = 'A' if !$ot;
     
     my (@a, @b, $i, $j, $k, @keys, $rec);
@@ -411,7 +577,6 @@ sub read_cfg_file {
     return \@hr;
 }
 
-
 1;
 
 =head1 HISTORY
@@ -423,16 +588,18 @@ sub read_cfg_file {
 This version extracts these methods from CGI::Getopt class: 
 get_inputs, read_init_file, and read_cfg_file.
 
-=item * Version 0.11
+  0.11 Inherited the new constructor from CGI::AppBuilder.
+  0.12 Added eval_var, eval_named_var, eval_variables and
+       modified read_init_file method. 
 
-Inherits the new constructor from CGI::AppBuilder.
+=item * Version 0.20
 
 =cut
 
 =head1 SEE ALSO (some of docs that I check often)
 
 Oracle::Loader, Oracle::Trigger, CGI::AppBuilder, File::Xcopy,
-Debug::EchoMessage
+CGI::AppBuilder::Message
 
 =head1 AUTHOR
 

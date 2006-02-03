@@ -4,5 +4,5 @@
 
 use Test::Harness;
 # Test::Harness::verbose=1;
-runtests(qw(t/Config.t));
+runtests(qw(t/ab_Config.t));
 
